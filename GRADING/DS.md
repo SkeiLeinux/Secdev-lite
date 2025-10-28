@@ -66,16 +66,23 @@
 
 ### Вариант A - DAST (лайт)
 
-- **Инструмент/таргет:** TODO (локальный стенд/демо-контейнер допустим)
+- **Инструмент/таргет:** OWASP ZAP (Docker image zaproxy/zap-stable, ZAP v2.16.1), запуск в GitHub Actions.
 - **Как запускал:**
 
   ```bash
-  zap-baseline.py -t http://127.0.0.1:8080 -m 3 \
-    -r EVIDENCE/dast-YYYY-MM-DD.html -J EVIDENCE/dast-YYYY-MM-DD.json
+            docker run --rm --network host \
+            -u 0:0 \
+            -v "${{ github.workspace }}/EVIDENCE/S11:/zap/wrk" \
+            zaproxy/zap-stable \
+            /zap/zap-full-scan.py \
+              -t http://localhost:8080 \
+              -r zap_full.html \
+              -J zap_full.json \
+              -d
   ```
 
 - **Отчёт:** `EVIDENCE/dast-YYYY-MM-DD.pdf#alert-...`
-- **Выводы:** TODO: 1-2 meaningful наблюдения
+- **Выводы:** Полный скан выявил критическую отражённую XSS и уязвимость обхода путей/чтения исходников, что может привести к исполнению произвольного JS и утечке кода/данных. Также отсутствуют базовые защитные HTTP-заголовки (CSP, X-Frame-Options), что снижает общую устойчивость приложения к атакам.
 
 ### Вариант B - Policy / Container / IaC
 
