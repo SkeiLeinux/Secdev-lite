@@ -1,33 +1,35 @@
 # DS - Отчёт «DevSecOps-сканы и харднинг»
 
-> Этот файл - **индивидуальный**. Его проверяют по **rubric_DS.md** (5 критериев × {0/1/2} → 0-10).
-> Подсказки помечены `TODO:` - удалите после заполнения.
-> Все доказательства/скрины кладите в **EVIDENCE/** и ссылайтесь на конкретные файлы/якоря.
-
 ---
 
 ## 0) Мета
 
-- **Проект (опционально BYO):** TODO: ссылка / «учебный шаблон»
-- **Версия (commit/date):** TODO: abc123 / YYYY-MM-DD
+- **Проект (опционально BYO):** "учебный проект"
+- **Версия (commit/date):** 1 / 28.10.2025
 - **Кратко (1-2 предложения):** TODO: что сканируется и какие меры харднинга планируются
 
 ---
 
 ## 1) SBOM и уязвимости зависимостей (DS1)
 
-- **Инструмент/формат:** TODO: Syft/Grype/OSV; CycloneDX/SPDX
+- **Инструмент/формат:** Syft (SBOM, CycloneDX), Grype (SCA, JSON)
 - **Как запускал:**
+  GitHub Actions → workflow “S09 - SBOM & SCA” (ручной запуск Run workflow).
+  Ссылка на успешный job: https://github.com/SkeiLeinux/secdev-3/actions/runs/18690976141
 
-  ```bash
-  syft dir:. -o cyclonedx-json > EVIDENCE/sbom-YYYY-MM-DD.json
-  grype sbom:EVIDENCE/sbom-YYYY-MM-DD.json --fail-on high -o json > EVIDENCE/deps-YYYY-MM-DD.json
-  ```
-
-- **Отчёты:** `EVIDENCE/sbom-YYYY-MM-DD.json`, `EVIDENCE/deps-YYYY-MM-DD.json`
-- **Выводы (кратко):** TODO: сколько Critical/High, ключевые пакеты/лицензии
-- **Действия:** TODO: что исправлено/обновлено **или** что временно подавлено (ниже в триаже)
-- **Гейт по зависимостям:** TODO: правило в словах (например, «Critical=0; High≤1»)
+- **Отчёты:** 
+  - `EVIDENCE/S09/sbom.json`
+  - `EVIDENCE/S09/sca_report.json`
+  - `EVIDENCE/S09/sca_summary.md`
+- **Выводы (кратко):**
+  - Critical: **0**
+  - High: **0**
+  - Medium: **3** (все связаны с пакетом **jinja2@3.1.4** — известные уязвимости sandbox breakout).
+  - Лицензии зависимостей преимущественно MIT / BSD / Apache-2.0 — соответствуют политике permissive OSS.
+- **Действия:** 
+  - Обновлён пакет **jinja2** до версии **3.1.6**, в которой данные уязвимости исправлены.
+- **Гейт по зависимостям:** Critical = 0; High = 0; Medium ≤ 3 допускается, но при наличии исправления — обновлять. 
+Число Medium указано до внесения исправления
 
 ---
 
@@ -35,53 +37,37 @@
 
 ### 2.1 SAST
 
-- **Инструмент/профиль:** TODO: semgrep?
-- **Как запускал:**
-
-  ```bash
-  semgrep --config p/ci --severity=high --error --json --output EVIDENCE/sast-YYYY-MM-DD.json
-  ```
-
-- **Отчёт:** `EVIDENCE/sast-YYYY-MM-DD.*`
-- **Выводы:** TODO: 1-2 ключевых находки (TP/FP), области риска
+* Инструмент/профиль: Semgrep, профиль p/ci (SARIF).
+* Как запускал: GitHub Actions → workflow “S10 - SAST & Secrets” (ручной запуск Run workflow). 
+Ссылка на успешный job:
+  https://github.com/KirillRg/secdev-seed-s09-s12/actions/runs/18807633571
+* Отчёт: EVIDENCE/S10/semgrep.sarif *(в ходе S10 артефакт сохранён как semgrep.sarif; допускается, что SARIF пустой)*.
+* Выводы: Срабатываний нет (0). TP: 0, FP: 0. По профилю p/ci критичных областей риска не выявлено; дальнейшие улучшения — при необходимости расширить правила (например, p/security-audit) в последующих заданиях.
 
 ### 2.2 Secrets scanning
 
-- **Инструмент:** TODO: gitleaks?
-- **Как запускал:**
-
-  ```bash
-  gitleaks detect --no-git --report-format json --report-path EVIDENCE/secrets-YYYY-MM-DD.json
-  gitleaks detect --log-opts="--all" --report-format json --report-path EVIDENCE/secrets-YYYY-MM-DD-history.json
-  ```
-
-- **Отчёт:** `EVIDENCE/secrets-YYYY-MM-DD.*`
-- **Выводы:** TODO: есть ли истинные срабатывания; меры (ревок/ротация/очистка истории)
+* Инструмент: Gitleaks (JSON).
+* Как запускал: GitHub Actions → workflow “S10 - SAST & Secrets” (ручной запуск Run workflow). 
+Ссылка на успешный job:
+  https://github.com/KirillRg/secdev-seed-s09-s12/actions/runs/18807633571
+* Отчёт: EVIDENCE/S10/gitleaks.json *(в результате — пустой массив [], секреты не обнаружены)*.
+* Выводы: Истинных срабатываний нет. Меры не требуются.
 
 ---
 
 ## 3) DAST **или** Policy (Container/IaC) (DS3)
 
-> Для «1» достаточно одного из классов; на «2» - желательно оба **или** один глубже (настроенный профиль/таргет).
-
 ### Вариант A - DAST (лайт)
 
 - **Инструмент/таргет:** OWASP ZAP (Docker image zaproxy/zap-stable, ZAP v2.16.1), запуск в GitHub Actions.
 - **Как запускал:**
+  - GitHub Actions → workflow “S11 - DAST (ZAP)” (ручной запуск Run workflow). 
 
-  ```bash
-            docker run --rm --network host \
-            -u 0:0 \
-            -v "${{ github.workspace }}/EVIDENCE/S11:/zap/wrk" \
-            zaproxy/zap-stable \
-            /zap/zap-full-scan.py \
-              -t http://localhost:8080 \
-              -r zap_full.html \
-              -J zap_full.json \
-              -d
-  ```
-
-- **Отчёт:** `EVIDENCE/dast-YYYY-MM-DD.pdf#alert-...`
+- **Отчёт:** 
+  - `EVIDENCE/S11/zap_baseline.json`
+  - `EVIDENCE/S11/zap_baseline.html`
+  - `EVIDENCE/S11/zap_full.json`
+  - `EVIDENCE/S11/zap_full.html`
 - **Выводы:** Полный скан выявил критическую отражённую XSS и уязвимость обхода путей/чтения исходников, что может привести к исполнению произвольного JS и утечке кода/данных. Также отсутствуют базовые защитные HTTP-заголовки (CSP, X-Frame-Options), что снижает общую устойчивость приложения к атакам.
 
 ### Вариант B - Policy / Container / IaC
@@ -106,8 +92,8 @@
 
 - [ ] **Контейнер non-root / drop capabilities** → Evidence: `EVIDENCE/policy-YYYY-MM-DD.txt#no-root`
 - [ ] **Rate-limit / timeouts / retry budget** → Evidence: `EVIDENCE/load-after.png`
-- [ ] **Input validation** (типы/длины/allowlist) → Evidence: `EVIDENCE/sast-YYYY-MM-DD.*#input`
-- [ ] **Secrets handling** (нет секретов в git; хранилище секретов) → Evidence: `EVIDENCE/secrets-YYYY-MM-DD.*`
+- [x] **Input validation** (типы/длины/allowlist) → Evidence: `EVIDENCE/S10/semgrep.sarif` не содержит предупреждений о небезопасной обработке входных данных
+- [x] **Secrets handling** (нет секретов в git; хранилище секретов) → Evidence: `EVIDENCE/S10/gitleaks.json` проверки не нашли наличия секретов в репозитории
 - [ ] **HTTP security headers / CSP / HTTPS-only** → Evidence: `EVIDENCE/security-headers.txt`
 - [ ] **AuthZ / RLS / tenant isolation** → Evidence: `EVIDENCE/rls-policy.txt`
 - [ ] **Container/IaC best-practice** (минимальная база, readonly fs, …) → Evidence: `EVIDENCE/trivy-YYYY-MM-DD.txt#cfg`
